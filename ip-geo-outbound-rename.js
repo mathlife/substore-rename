@@ -105,6 +105,13 @@ function flagToCode(flag) {
   return chars.length === 2 ? chars.join('') : '';
 }
 
+function flagEmojiFromCode(code) {
+  var c = normalizeCode(code);
+  if (!/^[A-Z]{2}$/.test(c)) return '';
+  var A = 0x1F1E6;
+  return String.fromCodePoint(A + (c.charCodeAt(0) - 65), A + (c.charCodeAt(1) - 65));
+}
+
 function detectCodeFromText(text) {
   var raw = String(text || '');
   if (!raw) return '';
@@ -141,11 +148,16 @@ function labelFromCode(code) {
 }
 
 function chooseLabel(node) {
-  var rawName = stripNodeLinks(String(node.name || ''));
-  var code = detectCodeFromText(rawName) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(getHost(node));
-  if (code) return { code: code, label: labelFromCode(code), rawName: rawName };
-  if (rawName) return { code: '', label: rawName, rawName: rawName };
-  return { code: '', label: '未知', rawName: '' };
+  var cleaned = stripNodeLinks(String(node.name || ''));
+  var code = detectCodeFromText(cleaned) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(getHost(node));
+  var flag = code ? flagEmojiFromCode(code) : '';
+  var country = code ? labelFromCode(code) : '';
+  var rawName = cleaned
+    .replace(/^[\s\|\-—–_:,，、]+|[\s\|\-—–_:,，、]+$/g, '')
+    .trim();
+  if (flag && country) return { code: code, label: country, flag: flag, rawName: rawName };
+  if (rawName) return { code: '', label: rawName, flag: '', rawName: rawName };
+  return { code: '', label: '未知', flag: '', rawName: '' };
 }
 
 function operator(proxies) {
@@ -159,7 +171,7 @@ function operator(proxies) {
       continue;
     }
     var pick = chooseLabel(node);
-    var finalName = bare ? pick.label : (pick.rawName ? (pick.rawName + sep + pick.label) : pick.label);
+    var finalName = bare ? ((pick.flag ? pick.flag + ' ' : '') + pick.label) : (pick.rawName ? (pick.rawName + sep + pick.label) : pick.label);
     if (!finalName) {
       if (!nm) continue;
       finalName = stripNodeLinks(String(node.name || '')) || '未知';
