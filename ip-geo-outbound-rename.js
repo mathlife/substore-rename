@@ -15,10 +15,13 @@
  * - debug=true     打印调试日志
  * - city=true      尽量追加城市（若 Geo API 返回）
  * - countryCode=true  使用国家代码而不是国家全名
- * - bare=true         只输出国家，不带原节点名
+ * - bare=true      只输出国家，不带原节点名
+ * - chinese=true   输出中文国家名（默认 true）
  *
- * 使用建议：
- *   https://raw.githubusercontent.com/<you>/<repo>/main/ip-geo-outbound-rename.js#nm=true&out=true&sep=%20|%20&outSep=%20|%20&debug=false
+ * 推荐：
+ * - 节点名格式：国家 | 出口国
+ * - 加国旗
+ * - 增加缓存，减少 API 请求
  */
 
 const args = typeof $arguments === 'object' && $arguments ? $arguments : {};
@@ -28,12 +31,16 @@ const debug = toBool(args.debug, false);
 const includeCity = toBool(args.city, false);
 const useCountryCode = toBool(args.countryCode, false);
 const bareCountryOnly = toBool(args.bare, false);
+const chineseNames = toBool(args.chinese, true);
 const sep = decodeOrDefault(args.sep, ' | ');
 const outSep = decodeOrDefault(args.outSep, sep);
 
 const GEO_CACHE = new Map();
 const RESOLVE_CACHE = new Map();
 let outboundGeoPromise = null;
+const REGION_ZH = typeof Intl !== 'undefined' && Intl.DisplayNames
+  ? new Intl.DisplayNames(['zh-Hans'], { type: 'region' })
+  : null;
 
 function toBool(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
@@ -89,21 +96,23 @@ function stripAuthAndPort(host) {
     const end = s.indexOf(']');
     return s.slice(1, end);
   }
-  // host:port only for IPv4 / domain; IPv6 without brackets is ambiguous, keep as-is
   const portMatch = s.match(/^(.+):([0-9]{1,5})$/);
   if (portMatch && !portMatch[1].includes(':')) return portMatch[1];
   return s;
 }
 
-function pickDisplayCountry(info) {
-  if (!info) return '';
-  const country = useCountryCode ? (info.countryCode || info.country_code || '') : (info.country || info.countryName || info.country_name || '');
-  const city = includeCity ? (info.city || '') : '';
-  if (city && country) return `${country} ${city}`;
-  return country || city || '';
+function regionName(code) {
+  const cc = String(code || '').trim().toUpperCase();
+  if (!cc) return '';
+  if (REGION_ZH) {
+    try {
+      const zh = REGION_ZH.of(cc);
+      if (zh) return zh;
+    } catch (_) {}
+  }
+  return cc;
 }
 
-// Convert ISO-3166 alpha-2 country code to flag emoji.
 function flagFromCountryCode(code) {
   const cc = String(code || '').trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc)) return '';
@@ -113,9 +122,11 @@ function flagFromCountryCode(code) {
 
 function getCountryLabel(info) {
   if (!info) return '';
-  const countryText = useCountryCode ? (info.countryCode || info.country_code || '') : (info.country || info.countryName || info.country_name || '');
-  const code = info.countryCode || info.country_code || '';
-  const flag = flagFromCountryCode(code);
+  const rawCode = info.countryCode || info.country_code || '';
+  const countryText = useCountryCode
+    ? rawCode
+    : (chineseNames ? regionName(rawCode) : (info.country || info.countryName || info.country_name || ''));
+  const flag = flagFromCountryCode(rawCode);
   if (!countryText) return '';
   return flag ? `${flag} ${countryText}` : countryText;
 }
@@ -256,7 +267,7 @@ async function detectOutboundGeo() {
     }
     if (!outIp) throw lastErr || new Error('failed to detect outbound ip');
     const geo = await getGeoByIp(outIp);
-    log('outbound', outIp, '=>', pickDisplayCountry(geo));
+    log('outbound', outIp, '=>', getCountryLabel(geo));
     return { ip: outIp, geo };
   })();
 
@@ -278,7 +289,6 @@ function getTag(node) {
 async function resolveNodeGeo(node) {
   const host = getTag(node);
   if (!host) throw new Error('node missing host/server/address');
-
   const ip = await resolveHostToIp(host);
   const geo = await getGeoByIp(ip);
   return { host, ip, geo };
