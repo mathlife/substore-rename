@@ -210,7 +210,6 @@ function chooseLabel(node) {
 function operator(proxies) {
   var result = [];
   var seen = {};
-  var pending = [];
   for (var i = 0; i < proxies.length; i++) {
     var node = proxies[i];
     var host = getHost(node);
@@ -219,61 +218,25 @@ function operator(proxies) {
       continue;
     }
     var pick = chooseLabel(node);
+    var finalName;
     if (pick.country) {
-      var finalName = pick.flag ? (pick.flag + ' ' + pick.country) : pick.country;
-      if (bare === false && pick.raw) finalName = pick.raw + ' | ' + finalName;
-      seen[finalName] = (seen[finalName] || 0) + 1;
-      if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
-      node.name = finalName;
-      result.push(node);
-      continue;
+      finalName = pick.flag ? (pick.flag + ' ' + pick.country) : pick.country;
+    } else {
+      var cached = getCachedGeoByHost(host);
+      if (cached) {
+        finalName = cached.code ? (flagEmojiFromCode(cached.code) + ' ' + (cached.country || labelFromCode(cached.code) || '未知')) : (cached.country || '未知');
+      } else {
+        if (!nm) continue;
+        finalName = pick.raw || stripNodeLinks(String(node.name || '')) || '未知';
+      }
     }
-    var cached = getCachedGeoByHost(host);
-    if (cached) {
-      var country = cached.country || labelFromCode(cached.code) || raw || '未知';
-      var region = cached.city || cached.region || '';
-      region = region ? region.replace(/^.*?-\s*/, '').trim() : '';
-      var finalName = cached.code ? flagEmojiFromCode(cached.code) + ' ' + country : country;
-      if (region) finalName += '·' + region;
-      seen[finalName] = (seen[finalName] || 0) + 1;
-      if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
-      node.name = finalName;
-      result.push(node);
-      continue;
-    }
-    pending.push({ node: node, host: host, raw: raw });
+    if (bare === false && pick.raw) finalName = pick.raw + ' | ' + finalName;
+    seen[finalName] = (seen[finalName] || 0) + 1;
+    if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
+    node.name = finalName;
+    result.push(node);
   }
-
-  if (!pending.length) return result;
-
-  // Fallback only when cache misses.
-  return Promise.all(pending.map(function(item) {
-    var node = item.node;
-    var host = item.host;
-    var raw = item.raw;
-    return resolveHost(host).then(function(ip) {
-      if (!ip) throw new Error('no ip');
-      return getRegionByIp(ip).then(function(geo) {
-        var country = geo.country || labelFromCode(geo.code) || raw || '未知';
-        var region = geo.city || geo.region || '';
-        region = region ? region.replace(/^.*?-\s*/, '').trim() : '';
-        var finalName = geo.code ? flagEmojiFromCode(geo.code) + ' ' + country : country;
-        if (region) finalName += '·' + region;
-        seen[finalName] = (seen[finalName] || 0) + 1;
-        if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
-        node.name = finalName;
-        result.push(node);
-      }).catch(function() {
-        if (!nm) return;
-        node.name = raw || stripNodeLinks(String(node.name || '')) || '未知';
-        result.push(node);
-      });
-    }).catch(function() {
-      if (!nm) return;
-      node.name = raw || stripNodeLinks(String(node.name || '')) || '未知';
-      result.push(node);
-    });
-  })).then(function() { return result; });
+  return result;
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = operator;
