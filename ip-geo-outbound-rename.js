@@ -61,6 +61,34 @@ function fetchJson(url) {
   });
 }
 
+function readCacheJson(key) {
+  try {
+    if (typeof $persistentStore !== 'undefined' && $persistentStore && $persistentStore.read) {
+      var v = $persistentStore.read(key);
+      if (v) return JSON.parse(v);
+    }
+  } catch (e) {}
+  try {
+    if (typeof $ !== 'undefined' && $ && $.read) {
+      var v2 = $.read(key);
+      if (v2) return JSON.parse(v2);
+    }
+  } catch (e2) {}
+  try {
+    if (typeof $substore !== 'undefined' && $substore && $substore.read) {
+      var v3 = $substore.read(key);
+      if (v3) return JSON.parse(v3);
+    }
+  } catch (e3) {}
+  return null;
+}
+
+function getCachedGeoByHost(host) {
+  var root = readCacheJson('substore_node_geo_cache_v1');
+  if (!root || !root.entries) return null;
+  return root.entries[host] || null;
+}
+
 function getRegionByIp(ip) {
   return fetchJson('https://ipapi.co/' + encodeURIComponent(ip) + '/json/').then(function(data) {
     var country = data && (data.country_name || data.country || '');
@@ -200,11 +228,25 @@ function operator(proxies) {
       result.push(node);
       continue;
     }
-    pending.push({ node: node, host: host, raw: pick.raw });
+    var cached = getCachedGeoByHost(host);
+    if (cached) {
+      var country = cached.country || labelFromCode(cached.code) || raw || '未知';
+      var region = cached.city || cached.region || '';
+      region = region ? region.replace(/^.*?-\s*/, '').trim() : '';
+      var finalName = cached.code ? flagEmojiFromCode(cached.code) + ' ' + country : country;
+      if (region) finalName += '·' + region;
+      seen[finalName] = (seen[finalName] || 0) + 1;
+      if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
+      node.name = finalName;
+      result.push(node);
+      continue;
+    }
+    pending.push({ node: node, host: host, raw: raw });
   }
 
   if (!pending.length) return result;
 
+  // Fallback only when cache misses.
   return Promise.all(pending.map(function(item) {
     var node = item.node;
     var host = item.host;
