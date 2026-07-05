@@ -35,18 +35,17 @@ var COUNTRY_MAP = {
 };
 
 var COUNTRY_ALIAS = {
-  albania: 'AL', argentina: 'AR', armenia: 'AM', australia: 'AU', austria: 'AT', azerbaijan: 'AZ', bangladesh: 'BD',
-  belarus: 'BY', belgium: 'BE', brazil: 'BR', canada: 'CA', chile: 'CL', china: 'CN', colombia: 'CO', croatia: 'HR',
-  czech: 'CZ', denmark: 'DK', egypt: 'EG', finland: 'FI', france: 'FR', germany: 'DE', greece: 'GR', hongkong: 'HK',
-  hungary: 'HU', iceland: 'IS', india: 'IN', indonesia: 'ID', iran: 'IR', iraq: 'IQ', ireland: 'IE', israel: 'IL',
-  italy: 'IT', japan: 'JP', korea: 'KR', kazakhstan: 'KZ', kuwait: 'KW', latvia: 'LV', lithuania: 'LT', malaysia: 'MY',
-  mexico: 'MX', moldova: 'MD', mongolia: 'MN', morocco: 'MA', netherlands: 'NL', newzealand: 'NZ', norway: 'NO',
-  pakistan: 'PK', philippines: 'PH', poland: 'PL', portugal: 'PT', romania: 'RO', russia: 'RU', saudiarabia: 'SA',
-  serbia: 'RS', singapore: 'SG', slovakia: 'SK', slovenia: 'SI', southafrica: 'ZA', spain: 'ES', sweden: 'SE', switzerland: 'CH',
+  albania: 'AL', argentina: 'AR', armenia: 'AM', australia: 'AU', austria: 'AT', azerbaijan: 'AZ', bahrain: 'BH', bangladesh: 'BD',
+  belarus: 'BY', belgium: 'BE', brazil: 'BR', bulgaria: 'BG', cambodia: 'KH', canada: 'CA', chile: 'CL', china: 'CN', colombia: 'CO', croatia: 'HR',
+  czech: 'CZ', denmark: 'DK', egypt: 'EG', finland: 'FI', france: 'FR', germany: 'DE', greece: 'GR', hongkong: 'HK', hungary: 'HU',
+  iceland: 'IS', india: 'IN', indonesia: 'ID', iran: 'IR', iraq: 'IQ', ireland: 'IE', israel: 'IL', italy: 'IT', japan: 'JP', korea: 'KR',
+  kazakhstan: 'KZ', kuwait: 'KW', latvia: 'LV', lithuania: 'LT', malaysia: 'MY', mexico: 'MX', moldova: 'MD', mongolia: 'MN', morocco: 'MA',
+  netherlands: 'NL', newzealand: 'NZ', norway: 'NO', pakistan: 'PK', philippines: 'PH', poland: 'PL', portugal: 'PT', romania: 'RO', russia: 'RU',
+  saudiarabia: 'SA', serbia: 'RS', singapore: 'SG', slovakia: 'SK', slovenia: 'SI', southafrica: 'ZA', spain: 'ES', sweden: 'SE', switzerland: 'CH',
   taiwan: 'TW', thailand: 'TH', turkey: 'TR', ukraine: 'UA', unitedstates: 'US', usa: 'US', us: 'US', unitedkingdom: 'GB', uk: 'GB',
   vietnam: 'VN', uzbekistan: 'UZ', southkorea: 'KR', northkorea: 'KP', macedonia: 'MK', algeria: 'DZ', tunisia: 'TN',
   unitedarabemirates: 'AE', uae: 'AE', dubai: 'AE'
-};
+
 
 function toBool(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
