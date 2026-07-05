@@ -54,6 +54,26 @@ function log() {
   if (debug && typeof console !== 'undefined' && console.log) console.log.apply(console, arguments);
 }
 
+function fetchJson(url) {
+  return fetch(url, { method: 'GET' }).then(function(resp) {
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+  });
+}
+
+function getRegionByIp(ip) {
+  return fetchJson('https://ipapi.co/' + encodeURIComponent(ip) + '/json/').then(function(data) {
+    var country = data && (data.country_name || data.country || '');
+    var region = data && (data.region || data.region_name || data.city || '');
+    if (!country && !region) throw new Error('no geo');
+    return {
+      country: country,
+      region: region,
+      code: data && (data.country_code || data.country || '')
+    };
+  });
+}
+
 function stripNodeLinks(text) {
   return String(text || '')
     .replace(/https?:\/\/\S+/gi, ' ')
@@ -127,6 +147,21 @@ function getHost(node) {
   return node.server || node.address || node.host || node.add || node.hostname || node.ip || '';
 }
 
+function resolveHost(host) {
+  var h = String(host || '').trim();
+  if (!h) return Promise.resolve('');
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(h) || /^[0-9a-fA-F:]+$/.test(h)) return Promise.resolve(h);
+  return fetchJson('https://dns.google/resolve?name=' + encodeURIComponent(h) + '&type=A').then(function(data) {
+    var answer = data && data.Answer;
+    if (Array.isArray(answer)) {
+      for (var i = 0; i < answer.length; i++) {
+        if (answer[i] && answer[i].data) return answer[i].data;
+      }
+    }
+    return '';
+  });
+}
+
 function labelFromCode(code) {
   var c = normalizeCode(code);
   var item = COUNTRY_MAP[c];
@@ -139,14 +174,13 @@ function chooseLabel(node) {
   var flag = code ? flagEmojiFromCode(code) : '';
   var country = code ? labelFromCode(code) : '';
   var raw = cleaned.replace(/\s*(?:[-_]|# ?)?\d{1,3}$/, '').replace(/^[\s|\-—–_:,，、]+|[\s|\-—–_:,，、]+$/g, '').trim();
-  if (flag && country) return { flag: flag, country: country, raw: raw };
-  if (raw) return { flag: '', country: raw, raw: raw };
-  return { flag: '', country: '未知', raw: '' };
+  return { code: code, flag: flag, country: country, raw: raw };
 }
 
 function operator(proxies) {
   var result = [];
   var seen = {};
+  var pending = [];
   for (var i = 0; i < proxies.length; i++) {
     var node = proxies[i];
     var host = getHost(node);
@@ -155,20 +189,46 @@ function operator(proxies) {
       continue;
     }
     var pick = chooseLabel(node);
-    var finalName = pick.flag ? (pick.flag + ' ' + pick.country) : pick.country;
-    if (!finalName) {
-      if (!nm) continue;
-      finalName = stripNodeLinks(String(node.name || '')) || '未知';
+    if (pick.country) {
+      var finalName = pick.flag ? (pick.flag + ' ' + pick.country) : pick.country;
+      if (bare === false && pick.raw) finalName = pick.raw + ' | ' + finalName;
+      seen[finalName] = (seen[finalName] || 0) + 1;
+      if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
+      node.name = finalName;
+      result.push(node);
+      continue;
     }
-    if (bare === false && pick.raw) finalName = pick.raw + ' | ' + finalName;
-    seen[finalName] = (seen[finalName] || 0) + 1;
-    if (seen[finalName] > 1) {
-      finalName += '-' + String(seen[finalName]).padStart(2, '0');
-    }
-    node.name = finalName;
-    result.push(node);
+    pending.push({ node: node, host: host, raw: pick.raw });
   }
-  return result;
+
+  if (!pending.length) return result;
+
+  return Promise.all(pending.map(function(item) {
+    var node = item.node;
+    var host = item.host;
+    var raw = item.raw;
+    return resolveHost(host).then(function(ip) {
+      if (!ip) throw new Error('no ip');
+      return getRegionByIp(ip).then(function(geo) {
+        var country = geo.country || labelFromCode(geo.code) || raw || '未知';
+        var region = geo.region ? geo.region.replace(/^.*?-\s*/, '').trim() : '';
+        var finalName = geo.code ? flagEmojiFromCode(geo.code) + ' ' + country : country;
+        if (region) finalName += '·' + region;
+        seen[finalName] = (seen[finalName] || 0) + 1;
+        if (seen[finalName] > 1) finalName += '-' + String(seen[finalName]).padStart(2, '0');
+        node.name = finalName;
+        result.push(node);
+      }).catch(function() {
+        if (!nm) return;
+        node.name = raw || stripNodeLinks(String(node.name || '')) || '未知';
+        result.push(node);
+      });
+    }).catch(function() {
+      if (!nm) return;
+      node.name = raw || stripNodeLinks(String(node.name || '')) || '未知';
+      result.push(node);
+    });
+  })).then(function() { return result; });
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = operator;
