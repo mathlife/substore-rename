@@ -38,6 +38,7 @@ var COUNTRY_ALIAS = {
   portugal: 'PT', romania: 'RO', russia: 'RU', saudiarabia: 'SA', serbia: 'RS', singapore: 'SG', slovakia: 'SK', slovenia: 'SI', southafrica: 'ZA',
   spain: 'ES', sweden: 'SE', switzerland: 'CH', taiwan: 'TW', thailand: 'TH', turkey: 'TR', ukraine: 'UA', unitedstates: 'US', usa: 'US', us: 'US',
   unitedkingdom: 'GB', uk: 'GB', vietnam: 'VN', uzbekistan: 'UZ', macedonia: 'MK', algeria: 'DZ', tunisia: 'TN', unitedarabemirates: 'AE', uae: 'AE', dubai: 'AE'
+};
 
 
 function toBool(v, fallback) {
