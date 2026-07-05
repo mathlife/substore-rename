@@ -1,333 +1,215 @@
-/**
- * ip-geo-outbound-rename.js
+/*
+ * Sub-Store Script Operator: sync-compatible rename script.
  *
- * 目标：
- * 1) 按节点 IP / 域名解析后的真实 IP 归属地重命名节点
- * 2) 可选地检测本机真实出口归属地，并追加到节点名末尾
+ * Goal:
+ * - keep compatibility with current Sub-Store runtime
+ * - rename by node name / host text matching
+ * - optional outbound cache label (sync only)
+ * - optional dedupe suffix
  *
- * 适用：Sub-Store Script Operator
- *
- * 参数（URL fragment / $arguments）：
- * - nm=true        保留无法识别的节点（默认 false；false 时丢弃）
- * - out=true       追加出口归属地（默认 false）
- * - sep= |         名称分隔符，默认 " | "
- * - outSep= |      出口前缀分隔符，默认与 sep 相同
- * - debug=true     打印调试日志
- * - city=true      尽量追加城市（若 Geo API 返回）
- * - countryCode=true  使用国家代码而不是国家全名
- * - bare=true         只输出国家，不带原节点名
- * - dedupe=true       对最终同名节点追加 #N（默认 false）
- *
- * 使用建议：
- *   https://raw.githubusercontent.com/<you>/<repo>/main/ip-geo-outbound-rename.js#nm=true&out=true&sep=%20|%20&outSep=%20|%20&debug=false
+ * Params:
+ * - bare=true        only output country label, do not keep original name
+ * - chinese=true     output Chinese country names (default true)
+ * - nm=true          keep original name if not matched (default true)
+ * - out=true         append outbound label from cache (default false)
+ * - dedupe=true      append #N on duplicate final names (default false)
+ * - sep=%20|%20      separator, default " | "
+ * - debug=true       print debug logs
+ * - outboundCacheKey=substore_rename_outbound_geo_v1
  */
 
-const args = typeof $arguments === 'object' && $arguments ? $arguments : {};
-const nm = toBool(args.nm, false);
-const outEnabled = toBool(args.out, false);
-const debug = toBool(args.debug, false);
-const includeCity = toBool(args.city, false);
-const useCountryCode = toBool(args.countryCode, false);
-const bareCountryOnly = toBool(args.bare, false);
-const dedupe = toBool(args.dedupe, false);
-const sep = decodeOrDefault(args.sep, ' | ');
-const outSep = decodeOrDefault(args.outSep, sep);
+var args = typeof $arguments === 'object' && $arguments ? $arguments : {};
+var bare = toBool(args.bare, true);
+var chinese = toBool(args.chinese, true);
+var nm = toBool(args.nm, true);
+var outEnabled = toBool(args.out, false);
+var dedupe = toBool(args.dedupe, false);
+var debug = toBool(args.debug, false);
+var sep = decodeOrDefault(args.sep, ' | ');
+var outboundCacheKey = String(args.outboundCacheKey || 'substore_rename_outbound_geo_v1');
 
-const GEO_CACHE = new Map();
-const RESOLVE_CACHE = new Map();
-let outboundGeoPromise = null;
+var COUNTRY_MAP = {
+  AD: ['安道尔', '🇦🇩'], AE: ['阿联酋', '🇦🇪'], AF: ['阿富汗', '🇦🇫'], AL: ['阿尔巴尼亚', '🇦🇱'], AM: ['亚美尼亚', '🇦🇲'], AO: ['安哥拉', '🇦🇴'],
+  AR: ['阿根廷', '🇦🇷'], AT: ['奥地利', '🇦🇹'], AU: ['澳大利亚', '🇦🇺'], AZ: ['阿塞拜疆', '🇦🇿'], BA: ['波黑', '🇧🇦'], BD: ['孟加拉国', '🇧🇩'],
+  BE: ['比利时', '🇧🇪'], BG: ['保加利亚', '🇧🇬'], BH: ['巴林', '🇧🇭'], BR: ['巴西', '🇧🇷'], BY: ['白俄罗斯', '🇧🇾'], CA: ['加拿大', '🇨🇦'],
+  CH: ['瑞士', '🇨🇭'], CL: ['智利', '🇨🇱'], CN: ['中国', '🇨🇳'], CO: ['哥伦比亚', '🇨🇴'], CR: ['哥斯达黎加', '🇨🇷'], CY: ['塞浦路斯', '🇨🇾'],
+  CZ: ['捷克', '🇨🇿'], DE: ['德国', '🇩🇪'], DK: ['丹麦', '🇩🇰'], EE: ['爱沙尼亚', '🇪🇪'], EG: ['埃及', '🇪🇬'], ES: ['西班牙', '🇪🇸'],
+  FI: ['芬兰', '🇫🇮'], FR: ['法国', '🇫🇷'], GB: ['英国', '🇬🇧'], GR: ['希腊', '🇬🇷'], HK: ['香港', '🇭🇰'], HR: ['克罗地亚', '🇭🇷'],
+  HU: ['匈牙利', '🇭🇺'], ID: ['印度尼西亚', '🇮🇩'], IE: ['爱尔兰', '🇮🇪'], IL: ['以色列', '🇮🇱'], IN: ['印度', '🇮🇳'], IQ: ['伊拉克', '🇮🇶'],
+  IR: ['伊朗', '🇮🇷'], IS: ['冰岛', '🇮🇸'], IT: ['意大利', '🇮🇹'], JP: ['日本', '🇯🇵'], KR: ['韩国', '🇰🇷'], KH: ['柬埔寨', '🇰🇭'],
+  KZ: ['哈萨克斯坦', '🇰🇿'], LT: ['立陶宛', '🇱🇹'], LU: ['卢森堡', '🇱🇺'], LV: ['拉脱维亚', '🇱🇻'], MA: ['摩洛哥', '🇲🇦'], MD: ['摩尔多瓦', '🇲🇩'],
+  MX: ['墨西哥', '🇲🇽'], MY: ['马来西亚', '🇲🇾'], NL: ['荷兰', '🇳🇱'], NO: ['挪威', '🇳🇴'], NZ: ['新西兰', '🇳🇿'], PH: ['菲律宾', '🇵🇭'],
+  PK: ['巴基斯坦', '🇵🇰'], PL: ['波兰', '🇵🇱'], PT: ['葡萄牙', '🇵🇹'], RO: ['罗马尼亚', '🇷🇴'], RS: ['塞尔维亚', '🇷🇸'], RU: ['俄罗斯', '🇷🇺'],
+  SA: ['沙特阿拉伯', '🇸🇦'], SE: ['瑞典', '🇸🇪'], SG: ['新加坡', '🇸🇬'], SI: ['斯洛文尼亚', '🇸🇮'], SK: ['斯洛伐克', '🇸🇰'], TH: ['泰国', '🇹🇭'],
+  TR: ['土耳其', '🇹🇷'], TW: ['台湾', '🇹🇼'], UA: ['乌克兰', '🇺🇦'], UK: ['英国', '🇬🇧'], US: ['美国', '🇺🇸'], UZ: ['乌兹别克斯坦', '🇺🇿'],
+  VN: ['越南', '🇻🇳'], ZA: ['南非', '🇿🇦']
+};
+
+var NAME_ALIASES = {
+  usa: 'US', us: 'US', unitedstates: 'US', america: 'US', losangeles: 'US', washington: 'US', chicago: 'US', dallas: 'US',
+  germany: 'DE', de: 'DE', frankfurt: 'DE', berlin: 'DE',
+  japan: 'JP', jp: 'JP', tokyo: 'JP', osaka: 'JP',
+  singapore: 'SG', sg: 'SG',
+  hongkong: 'HK', hk: 'HK',
+  taiwan: 'TW', tw: 'TW', taipei: 'TW',
+  korea: 'KR', kr: 'KR', seoul: 'KR',
+  france: 'FR', fr: 'FR', paris: 'FR',
+  netherlands: 'NL', nl: 'NL', amsterdam: 'NL', holland: 'NL',
+  uk: 'GB', gb: 'GB', london: 'GB', unitedkingdom: 'GB',
+  uae: 'AE', ae: 'AE', dubai: 'AE',
+  turkey: 'TR', tr: 'TR', istanbul: 'TR',
+  malaysia: 'MY', my: 'MY',
+  india: 'IN', in: 'IN', mumbai: 'IN',
+  indonesia: 'ID', id: 'ID', jakarta: 'ID',
+  poland: 'PL', pl: 'PL', warsaw: 'PL',
+  sweden: 'SE', se: 'SE', stockholm: 'SE',
+  norway: 'NO', no: 'NO', oslo: 'NO',
+  mexico: 'MX', mx: 'MX',
+  vietnam: 'VN', vn: 'VN', hanoi: 'VN',
+  australia: 'AU', au: 'AU', sydney: 'AU', melbourne: 'AU',
+  italy: 'IT', it: 'IT', milan: 'IT',
+  southafrica: 'ZA', za: 'ZA', johannesburg: 'ZA',
+  pakistan: 'PK', pk: 'PK', karachi: 'PK',
+  philippines: 'PH', ph: 'PH', manila: 'PH',
+  greece: 'GR', gr: 'GR', athens: 'GR',
+  finland: 'FI', fi: 'FI', helsinki: 'FI',
+  argentina: 'AR', ar: 'AR', buenosaires: 'AR',
+  chile: 'CL', cl: 'CL', santiago: 'CL',
+  egypt: 'EG', eg: 'EG', cairo: 'EG',
+  uzbekistan: 'UZ', uz: 'UZ', tashkent: 'UZ',
+  iraq: 'IQ', iq: 'IQ', baghdad: 'IQ',
+  iceland: 'IS', is: 'IS', reykjavik: 'IS'
+};
 
 function toBool(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
   if (typeof v === 'boolean') return v;
-  const s = String(v).trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on', 'y'].includes(s)) return true;
-  if (['0', 'false', 'no', 'off', 'n'].includes(s)) return false;
+  var s = String(v).toLowerCase();
+  if (s === '1' || s === 'true' || s === 'yes' || s === 'on') return true;
+  if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
   return fallback;
 }
 
 function decodeOrDefault(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
-  try {
-    return decodeURIComponent(String(v));
-  } catch (_) {
-    return String(v);
+  try { return decodeURIComponent(String(v)); } catch (e) { return String(v); }
+}
+
+function log(msg) {
+  if (debug && typeof console !== 'undefined' && console.log) console.log('[substore-rename] ' + msg);
+}
+
+function cleanKey(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function normalizeCode(code) {
+  var c = String(code || '').toUpperCase();
+  if (c === 'UK') return 'GB';
+  return c;
+}
+
+function labelFromCode(code) {
+  var c = normalizeCode(code);
+  var item = COUNTRY_MAP[c];
+  if (!item) return c || '';
+  return item[1] + ' ' + (chinese ? item[0] : c);
+}
+
+function detectCodeFromText(text) {
+  var raw = String(text || '');
+  if (!raw) return '';
+  var tokens = raw.split(/[^A-Za-z]+/);
+  var i, t, up, ck;
+  for (i = 0; i < tokens.length; i++) {
+    t = tokens[i];
+    if (!t) continue;
+    up = normalizeCode(t);
+    if (COUNTRY_MAP[up]) return up;
+    ck = cleanKey(t);
+    if (NAME_ALIASES[ck]) return NAME_ALIASES[ck];
   }
-}
-
-function log(...parts) {
-  if (debug) console.log('[ip-geo-rename]', ...parts);
-}
-
-function isIPv4(value) {
-  if (typeof value !== 'string') return false;
-  return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) && value.split('.').every((n) => Number(n) >= 0 && Number(n) <= 255);
-}
-
-function isIPv6(value) {
-  if (typeof value !== 'string') return false;
-  return /^[0-9a-fA-F:]+$/.test(value) && value.includes(':');
-}
-
-function getHostFromNode(node) {
-  return (
-    node.server ||
-    node.address ||
-    node.host ||
-    node.add ||
-    node.hostname ||
-    node.ip ||
-    node.ipv4 ||
-    node.ipv6 ||
-    ''
-  );
-}
-
-function stripAuthAndPort(host) {
-  if (!host) return '';
-  let s = String(host).trim();
-  if (s.includes('@')) s = s.split('@').pop();
-  if (s.startsWith('[') && s.includes(']')) {
-    const end = s.indexOf(']');
-    return s.slice(1, end);
+  var all = cleanKey(raw);
+  for (var k in NAME_ALIASES) {
+    if (NAME_ALIASES.hasOwnProperty(k) && all.indexOf(k) >= 0) return NAME_ALIASES[k];
   }
-  // host:port only for IPv4 / domain; IPv6 without brackets is ambiguous, keep as-is
-  const portMatch = s.match(/^(.+):([0-9]{1,5})$/);
-  if (portMatch && !portMatch[1].includes(':')) return portMatch[1];
-  return s;
+  return '';
 }
 
-function pickDisplayCountry(info) {
-  if (!info) return '';
-  const country = useCountryCode ? (info.countryCode || info.country_code || '') : (info.country || info.countryName || info.country_name || '');
-  const city = includeCity ? (info.city || '') : '';
-  if (city && country) return `${country} ${city}`;
-  return country || city || '';
+function getHost(node) {
+  return node.server || node.address || node.host || node.add || node.hostname || node.ip || '';
 }
 
-// Convert ISO-3166 alpha-2 country code to flag emoji.
-function flagFromCountryCode(code) {
-  const cc = String(code || '').trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(cc)) return '';
-  const A = 0x1F1E6;
-  return String.fromCodePoint(A + (cc.charCodeAt(0) - 65), A + (cc.charCodeAt(1) - 65));
-}
-
-function getCountryLabel(info) {
-  if (!info) return '';
-  const countryText = useCountryCode ? (info.countryCode || info.country_code || '') : (info.country || info.countryName || info.country_name || '');
-  const code = info.countryCode || info.country_code || '';
-  const flag = flagFromCountryCode(code);
-  if (!countryText) return '';
-  return flag ? `${flag} ${countryText}` : countryText;
-}
-
-function normalizeGeoResponse(data, fallbackIp) {
-  return {
-    ip: data.ip || fallbackIp || '',
-    country: data.country_name || data.country || data.countryName || '',
-    countryCode: data.country || data.country_code || data.countryCode || '',
-    city: data.city || '',
-    region: data.region || data.region_name || '',
-    asn: data.asn || data.asn_org || '',
-    org: data.org || data.asn_org || data.company || '',
-    raw: data,
-  };
-}
-
-async function fetchJson(url, opts = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), opts.timeout || 8000);
-  try {
-    const resp = await fetch(url, {
-      method: 'GET',
-      headers: opts.headers || {},
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return await resp.json();
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function fetchText(url, opts = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), opts.timeout || 8000);
-  try {
-    const resp = await fetch(url, {
-      method: 'GET',
-      headers: opts.headers || {},
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return (await resp.text()).trim();
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function getGeoByIp(ip) {
-  if (!ip) throw new Error('empty ip');
-  const key = String(ip).trim();
-  if (GEO_CACHE.has(key)) return GEO_CACHE.get(key);
-
-  const providers = [
-    () => fetchJson(`https://ipapi.co/${encodeURIComponent(key)}/json/`, { timeout: 8000 }),
-    () => fetchJson(`https://ipwho.is/${encodeURIComponent(key)}`, { timeout: 8000 }),
-  ];
-
-  let lastErr = null;
-  for (const provider of providers) {
+function readStore(key) {
+  var keys = ['#' + key, key];
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
     try {
-      const data = await provider();
-      if (data && data.success === false && data.message) throw new Error(data.message);
-      const geo = normalizeGeoResponse(data, key);
-      if (!geo.country && !geo.countryCode) throw new Error('geo response missing country');
-      GEO_CACHE.set(key, geo);
-      return geo;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr || new Error(`geo lookup failed: ${key}`);
-}
-
-async function resolveHostToIp(host) {
-  const key = String(host || '').trim();
-  if (!key) throw new Error('empty host');
-  if (RESOLVE_CACHE.has(key)) return RESOLVE_CACHE.get(key);
-
-  if (isIPv4(key) || isIPv6(key)) {
-    RESOLVE_CACHE.set(key, key);
-    return key;
-  }
-
-  const resolvers = [
-    async () => {
-      const data = await fetchJson(`https://dns.google/resolve?name=${encodeURIComponent(key)}&type=A`, { timeout: 8000 });
-      const answer = Array.isArray(data.Answer) ? data.Answer.find((x) => x.type === 1 && x.data) : null;
-      return answer ? answer.data : '';
-    },
-    async () => {
-      const data = await fetchJson(`https://dns.google/resolve?name=${encodeURIComponent(key)}&type=AAAA`, { timeout: 8000 });
-      const answer = Array.isArray(data.Answer) ? data.Answer.find((x) => x.type === 28 && x.data) : null;
-      return answer ? answer.data : '';
-    },
-  ];
-
-  let lastErr = null;
-  for (const resolver of resolvers) {
+      if (typeof $ !== 'undefined' && $ && $.read) {
+        var v0 = $.read(k);
+        if (v0) return v0;
+      }
+    } catch (e0) {}
     try {
-      const ip = await resolver();
-      if (ip && (isIPv4(ip) || isIPv6(ip))) {
-        RESOLVE_CACHE.set(key, ip);
-        return ip;
+      if (typeof $persistentStore !== 'undefined' && $persistentStore && $persistentStore.read) {
+        var v1 = $persistentStore.read(k);
+        if (v1) return v1;
       }
-    } catch (err) {
-      lastErr = err;
-    }
+    } catch (e1) {}
+    try {
+      if (typeof $prefs !== 'undefined' && $prefs && $prefs.valueForKey) {
+        var v2 = $prefs.valueForKey(k);
+        if (v2) return v2;
+      }
+    } catch (e2) {}
   }
-
-  throw lastErr || new Error(`resolve failed: ${key}`);
+  return '';
 }
 
-async function detectOutboundGeo() {
-  if (!outEnabled) return null;
-  if (outboundGeoPromise) return outboundGeoPromise;
-
-  outboundGeoPromise = (async () => {
-    const ipSources = [
-      'https://api.ipify.org',
-      'https://ifconfig.me/ip',
-      'https://ident.me',
-    ];
-
-    let outIp = '';
-    let lastErr = null;
-    for (const url of ipSources) {
-      try {
-        const text = await fetchText(url, { timeout: 7000 });
-        if (text && (isIPv4(text) || isIPv6(text))) {
-          outIp = text;
-          break;
-        }
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-    if (!outIp) throw lastErr || new Error('failed to detect outbound ip');
-    const geo = await getGeoByIp(outIp);
-    log('outbound', outIp, '=>', pickDisplayCountry(geo));
-    return { ip: outIp, geo };
-  })();
-
-  return outboundGeoPromise;
-}
-
-function buildBaseName(node, geo) {
-  const name = String(node.name || '').trim();
-  const label = getCountryLabel(geo);
-  if (!label) return nm ? name : '';
-  return bareCountryOnly ? label : (name ? `${name}${sep}${label}` : label);
-}
-
-function getTag(node) {
-  const host = stripAuthAndPort(getHostFromNode(node));
-  return host;
-}
-
-async function resolveNodeGeo(node) {
-  const host = getTag(node);
-  if (!host) throw new Error('node missing host/server/address');
-
-  const ip = await resolveHostToIp(host);
-  const geo = await getGeoByIp(ip);
-  return { host, ip, geo };
-}
-
-async function operator(proxies) {
-  const outbound = await detectOutboundGeo().catch((err) => {
-    log('outbound geo skipped:', err && err.message ? err.message : err);
+function parseCachedOutbound(raw) {
+  if (!raw) return null;
+  try {
+    var obj = JSON.parse(raw);
+    if (!obj || !obj.code) return null;
+    return obj;
+  } catch (e) {
     return null;
-  });
-  const outboundLabel = outbound ? getCountryLabel(outbound.geo) : '';
-
-  const result = [];
-  const nameCounts = new Map();
-  for (const node of proxies) {
-    try {
-      const { host, ip, geo } = await resolveNodeGeo(node);
-      const baseName = buildBaseName(node, geo);
-      if (!baseName) {
-        if (!nm) {
-          log('drop', node.name, 'host=', host, 'ip=', ip, 'reason=no geo label');
-          continue;
-        }
-        node.name = String(node.name || '');
-      } else {
-        let finalName = outboundLabel ? `${baseName}${outSep}↗ ${outboundLabel}` : baseName;
-        if (dedupe) {
-          const count = (nameCounts.get(finalName) || 0) + 1;
-          nameCounts.set(finalName, count);
-          if (count > 1) finalName = `${finalName} #${count}`;
-        }
-        node.name = finalName;
-      }
-      node._ipGeo = { host, ip, country: geo.country, countryCode: geo.countryCode, city: geo.city };
-      result.push(node);
-      log('rename', host, '=>', node.name);
-    } catch (err) {
-      if (nm) {
-        if (outboundLabel && node.name) node.name = `${node.name}${outSep}↗ ${outboundLabel}`;
-        result.push(node);
-        log('fallback keep', node.name, err && err.message ? err.message : err);
-      } else {
-        log('drop node', node.name, err && err.message ? err.message : err);
-      }
-    }
   }
+}
 
+function getOutboundLabel() {
+  if (!outEnabled) return '';
+  var cached = parseCachedOutbound(readStore(outboundCacheKey));
+  if (!cached || !cached.code) return '';
+  var label = labelFromCode(cached.code);
+  if (cached.region) label += ' ' + cached.region;
+  return label;
+}
+
+function operator(proxies) {
+  var outboundLabel = getOutboundLabel();
+  var result = [];
+  var counts = {};
+  for (var i = 0; i < proxies.length; i++) {
+    var node = proxies[i];
+    var code = detectCodeFromText(node.name) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(getHost(node));
+    var base = code ? labelFromCode(code) : '';
+    if (!base) {
+      if (!nm) continue;
+      base = String(node.name || '').trim();
+      if (!base) base = String(getHost(node) || '').trim();
+      if (!base) base = 'Unknown';
+    }
+    var finalName = bare ? base : ((node.name ? String(node.name) + sep : '') + base);
+    if (outboundLabel) finalName += sep + outboundLabel;
+    if (dedupe) {
+      counts[finalName] = (counts[finalName] || 0) + 1;
+      if (counts[finalName] > 1) finalName += ' #' + counts[finalName];
+    }
+    node.name = finalName;
+    result.push(node);
+    log('rename => ' + finalName);
+  }
   return result;
 }
 
