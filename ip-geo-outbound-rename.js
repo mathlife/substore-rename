@@ -24,7 +24,7 @@ var nm = toBool(args.nm, true);
 var debug = toBool(args.debug, false);
 var bare = toBool(args.bare, true);
 var chinese = toBool(args.chinese, true);
-var outEnabled = toBool(args.out, true);
+var outEnabled = toBool(args.out, false);
 var sep = decodeOrDefault(args.sep, ' | ');
 var outboundTtl = parseInt(args.outboundTtl || '21600', 10);
 if (!outboundTtl || outboundTtl < 60) outboundTtl = 21600;
@@ -59,6 +59,8 @@ var NAME_ALIASES = {
   newzealand: 'NZ', auckland: 'NZ', nz: 'NZ', australia: 'AU', au: 'AU', brazil: 'BR', br: 'BR', india: 'IN', in: 'IN', indonesia: 'ID', id: 'ID', spain: 'ES', es: 'ES',
   italy: 'IT', it: 'IT', swiss: 'CH', switzerland: 'CH', ch: 'CH'
 };
+
+var SPECIAL_RETAIN = { gpt: 'GPT', n: 'NF' };
 
 function toBool(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
@@ -139,56 +141,6 @@ function parseCachedOutbound(raw) {
   return null;
 }
 
-async function fetchText(url) {
-  var resp = await fetch(url, { method: 'GET' });
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  return (await resp.text()).trim();
-}
-
-async function fetchJson(url) {
-  return JSON.parse(await fetchText(url));
-}
-
-function makeOutboundLabel(code, region) {
-  var regionPart = region ? ' ' + region : '';
-  return labelFromCode(code) + regionPart;
-}
-
-async function detectOutboundGeoLive() {
-  var ipSources = ['https://api.ipify.org', 'https://ident.me', 'https://ifconfig.me/ip'];
-  var outIp = '';
-  for (var i = 0; i < ipSources.length; i++) {
-    try {
-      var t = await fetchText(ipSources[i]);
-      if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(t) || /^[0-9a-fA-F:]+$/.test(t)) {
-        outIp = t;
-        break;
-      }
-    } catch (e) {}
-  }
-  if (!outIp) throw new Error('failed to detect outbound ip');
-  var geoUrls = [
-    'https://ipapi.co/' + encodeURIComponent(outIp) + '/json/',
-    'https://ipwho.is/' + encodeURIComponent(outIp)
-  ];
-  for (var j = 0; j < geoUrls.length; j++) {
-    try {
-      var data = await fetchJson(geoUrls[j]);
-      if (data && data.success === false && data.message) throw new Error(data.message);
-      var code = data.country_code || data.country || data.countryCode || '';
-      if (code) {
-        code = String(code).toUpperCase();
-        return {
-          ip: outIp,
-          code: code,
-          region: data.region || data.region_name || data.city || ''
-        };
-      }
-    } catch (e) {}
-  }
-  throw new Error('failed to detect outbound geo');
-}
-
 async function getOutboundLabel() {
   if (!outEnabled) return '';
   if (OUTBOUND_CACHE !== null) return OUTBOUND_CACHE;
@@ -199,15 +151,7 @@ async function getOutboundLabel() {
     log('outbound cache hit: ' + cached.code + (regionPart ? (' region=' + cached.region) : ''));
     return OUTBOUND_CACHE;
   }
-  log('outbound cache miss: ' + outboundCacheKey + ', falling back to live lookup');
-  try {
-    var live = await detectOutboundGeoLive();
-    OUTBOUND_CACHE = makeOutboundLabel(live.code, live.region);
-    log('outbound live hit: ' + live.code + (live.region ? (' region=' + live.region) : ''));
-    return OUTBOUND_CACHE;
-  } catch (e) {
-    log('outbound live lookup failed: ' + (e && e.message ? e.message : e));
-  }
+  log('outbound cache miss: ' + outboundCacheKey + ', outbound label omitted');
   OUTBOUND_CACHE = '';
   return OUTBOUND_CACHE;
 }
