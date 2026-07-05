@@ -28,6 +28,7 @@ var outEnabled = toBool(args.out, true);
 var sep = decodeOrDefault(args.sep, ' | ');
 var outboundTtl = parseInt(args.outboundTtl || '21600', 10);
 if (!outboundTtl || outboundTtl < 60) outboundTtl = 21600;
+var dedupe = toBool(args.dedupe, false);
 var outboundCacheKey = String(args.outboundCacheKey || 'substore_rename_outbound_geo_v1');
 
 var COUNTRY_CACHE = {};
@@ -228,14 +229,18 @@ async function operator(proxies) {
     }
     if (!bare && node.name) base = String(node.name) + sep + base;
     var combined = outboundLabel ? (base + sep + outboundLabel) : base;
-    // Ensure uniqueness by appending a numeric suffix if needed
-    if (nameCounts[combined] === undefined) {
-      nameCounts[combined] = 1;
+    if (dedupe) {
+      // Ensure uniqueness by appending a numeric suffix if needed
+      if (nameCounts[combined] === undefined) {
+        nameCounts[combined] = 1;
+      } else {
+        nameCounts[combined] += 1;
+      }
+      var suffix = nameCounts[combined] > 1 ? ' #' + nameCounts[combined] : '';
+      node.name = combined + suffix;
     } else {
-      nameCounts[combined] += 1;
+      node.name = combined;
     }
-    var suffix = nameCounts[combined] > 1 ? ' #' + nameCounts[combined] : '';
-    node.name = combined + suffix;
     result.push(node);
   }
   return result;
