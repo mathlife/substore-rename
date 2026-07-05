@@ -220,8 +220,11 @@ async function operator(proxies) {
     var code = detectNodeCode(node);
     var base = code ? labelFromCode(code) : '';
     if (!base) {
-      if (nm) result.push(node);
-      continue;
+      if (!nm) {
+        continue;
+      }
+      base = String(node.name || getHost(node) || '').trim();
+      if (!base) base = 'Unknown';
     }
     if (!bare && node.name) base = String(node.name) + sep + base;
     var combined = outboundLabel ? (base + sep + outboundLabel) : base;
