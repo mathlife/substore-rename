@@ -64,11 +64,13 @@ function fetchJson(url) {
 function getRegionByIp(ip) {
   return fetchJson('https://ipapi.co/' + encodeURIComponent(ip) + '/json/').then(function(data) {
     var country = data && (data.country_name || data.country || '');
-    var region = data && (data.region || data.region_name || data.city || '');
-    if (!country && !region) throw new Error('no geo');
+    var region = data && (data.region || data.region_name || '');
+    var city = data && (data.city || '');
+    if (!country && !region && !city) throw new Error('no geo');
     return {
       country: country,
       region: region,
+      city: city,
       code: data && (data.country_code || data.country || '')
     };
   });
@@ -211,7 +213,8 @@ function operator(proxies) {
       if (!ip) throw new Error('no ip');
       return getRegionByIp(ip).then(function(geo) {
         var country = geo.country || labelFromCode(geo.code) || raw || '未知';
-        var region = geo.region ? geo.region.replace(/^.*?-\s*/, '').trim() : '';
+        var region = geo.city || geo.region || '';
+        region = region ? region.replace(/^.*?-\s*/, '').trim() : '';
         var finalName = geo.code ? flagEmojiFromCode(geo.code) + ' ' + country : country;
         if (region) finalName += '·' + region;
         seen[finalName] = (seen[finalName] || 0) + 1;
