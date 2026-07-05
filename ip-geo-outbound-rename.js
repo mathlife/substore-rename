@@ -1,20 +1,14 @@
 /*
- * Sub-Store Script Operator: lightweight rename script.
- *
- * Goals:
- * - strip Telegram/HTTP links from node names
- * - drop loopback nodes (127.0.0.1, localhost, ::1)
- * - normalize names with country labels in Chinese
- * - support flag emoji and English country names in names
- * - keep script ES5-safe and synchronous
+ * Sub-Store rename script
+ * - strip Telegram / HTTP links
+ * - keep only flag emoji (if present) + Chinese country name
+ * - drop loopback nodes
+ * - synchronous / ES5-safe
  */
 
 var args = typeof $arguments === 'object' && $arguments ? $arguments : {};
 var nm = toBool(args.nm, true);
-var chinese = toBool(args.chinese, true);
 var bare = toBool(args.bare, true);
-var dedupe = toBool(args.dedupe, false);
-var sep = decodeOrDefault(args.sep, ' | ');
 var debug = toBool(args.debug, false);
 
 var COUNTRY_MAP = {
@@ -37,15 +31,14 @@ var COUNTRY_MAP = {
 var COUNTRY_ALIAS = {
   albania: 'AL', argentina: 'AR', armenia: 'AM', australia: 'AU', austria: 'AT', azerbaijan: 'AZ', bahrain: 'BH', bangladesh: 'BD',
   belarus: 'BY', belgium: 'BE', brazil: 'BR', bulgaria: 'BG', cambodia: 'KH', canada: 'CA', chile: 'CL', china: 'CN', colombia: 'CO', croatia: 'HR',
-  czech: 'CZ', denmark: 'DK', egypt: 'EG', finland: 'FI', france: 'FR', germany: 'DE', greece: 'GR', hongkong: 'HK', hungary: 'HU',
-  iceland: 'IS', india: 'IN', indonesia: 'ID', iran: 'IR', iraq: 'IQ', ireland: 'IE', israel: 'IL', italy: 'IT', japan: 'JP', korea: 'KR',
-  kazakhstan: 'KZ', kuwait: 'KW', latvia: 'LV', lithuania: 'LT', malaysia: 'MY', mexico: 'MX', moldova: 'MD', mongolia: 'MN', morocco: 'MA',
-  netherlands: 'NL', newzealand: 'NZ', norway: 'NO', pakistan: 'PK', philippines: 'PH', poland: 'PL', portugal: 'PT', romania: 'RO', russia: 'RU',
-  saudiarabia: 'SA', serbia: 'RS', singapore: 'SG', slovakia: 'SK', slovenia: 'SI', southafrica: 'ZA', spain: 'ES', sweden: 'SE', switzerland: 'CH',
-  taiwan: 'TW', thailand: 'TH', turkey: 'TR', ukraine: 'UA', unitedstates: 'US', usa: 'US', us: 'US', unitedkingdom: 'GB', uk: 'GB',
-  vietnam: 'VN', uzbekistan: 'UZ', southkorea: 'KR', northkorea: 'KP', macedonia: 'MK', algeria: 'DZ', tunisia: 'TN',
-  unitedarabemirates: 'AE', uae: 'AE', dubai: 'AE'
-
+  czech: 'CZ', czechrepublic: 'CZ', denmark: 'DK', egypt: 'EG', finland: 'FI', france: 'FR', germany: 'DE', greece: 'GR', hongkong: 'HK',
+  hungary: 'HU', iceland: 'IS', india: 'IN', indonesia: 'ID', iran: 'IR', iraq: 'IQ', ireland: 'IE', israel: 'IL', italy: 'IT', japan: 'JP',
+  korea: 'KR', southkorea: 'KR', northkorea: 'KP', kazakhstan: 'KZ', kuwait: 'KW', latvia: 'LV', lithuania: 'LT', malaysia: 'MY', mexico: 'MX',
+  moldova: 'MD', mongolia: 'MN', morocco: 'MA', netherlands: 'NL', newzealand: 'NZ', norway: 'NO', pakistan: 'PK', philippines: 'PH', poland: 'PL',
+  portugal: 'PT', romania: 'RO', russia: 'RU', saudiarabia: 'SA', serbia: 'RS', singapore: 'SG', slovakia: 'SK', slovenia: 'SI', southafrica: 'ZA',
+  spain: 'ES', sweden: 'SE', switzerland: 'CH', taiwan: 'TW', thailand: 'TH', turkey: 'TR', ukraine: 'UA', unitedstates: 'US', usa: 'US', us: 'US',
+  unitedkingdom: 'GB', uk: 'GB', vietnam: 'VN', uzbekistan: 'UZ', macedonia: 'MK', algeria: 'DZ', tunisia: 'TN', unitedarabemirates: 'AE', uae: 'AE', dubai: 'AE'
+};
 
 function toBool(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
@@ -54,11 +47,6 @@ function toBool(v, fallback) {
   if (s === '1' || s === 'true' || s === 'yes' || s === 'on') return true;
   if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
   return fallback;
-}
-
-function decodeOrDefault(v, fallback) {
-  if (v === undefined || v === null || v === '') return fallback;
-  try { return decodeURIComponent(String(v)); } catch (e) { return String(v); }
 }
 
 function log() {
@@ -72,8 +60,7 @@ function stripNodeLinks(text) {
     .replace(/telegram\.me\/\S+/gi, ' ')
     .replace(/telegram\.dog\/\S+/gi, ' ')
     .replace(/@[A-Za-z0-9_]{4,}/g, ' ')
-    .replace(/\s*\|\s*\|/g, ' | ')
-    .replace(/[|｜]+\s*$/g, ' ')
+    .replace(/\s*\|\s*/g, ' | ')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -142,8 +129,7 @@ function getHost(node) {
 function labelFromCode(code) {
   var c = normalizeCode(code);
   var item = COUNTRY_MAP[c];
-  if (!item) return '';
-  return (chinese ? item[0] : c);
+  return item ? item[0] : '';
 }
 
 function chooseLabel(node) {
@@ -151,12 +137,10 @@ function chooseLabel(node) {
   var code = detectCodeFromText(cleaned) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(getHost(node));
   var flag = code ? flagEmojiFromCode(code) : '';
   var country = code ? labelFromCode(code) : '';
-  var rawName = cleaned
-    .replace(/^[\s\|\-—–_:,，、]+|[\s\|\-—–_:,，、]+$/g, '')
-    .trim();
-  if (flag && country) return { code: code, label: country, flag: flag, rawName: rawName };
-  if (rawName) return { code: '', label: rawName, flag: '', rawName: rawName };
-  return { code: '', label: '未知', flag: '', rawName: '' };
+  var raw = cleaned.replace(/^[\s|\-—–_:,，、]+|[\s|\-—–_:,，、]+$/g, '').trim();
+  if (flag && country) return { flag: flag, country: country, raw: raw };
+  if (raw) return { flag: '', country: raw, raw: raw };
+  return { flag: '', country: '未知', raw: '' };
 }
 
 function operator(proxies) {
@@ -170,15 +154,14 @@ function operator(proxies) {
       continue;
     }
     var pick = chooseLabel(node);
-    var finalName = bare ? ((pick.flag ? pick.flag + ' ' : '') + pick.label) : (pick.rawName ? (pick.rawName + sep + pick.label) : pick.label);
+    var finalName = pick.flag ? (pick.flag + ' ' + pick.country) : pick.country;
     if (!finalName) {
       if (!nm) continue;
       finalName = stripNodeLinks(String(node.name || '')) || '未知';
     }
-    if (dedupe) {
-      seen[finalName] = (seen[finalName] || 0) + 1;
-      if (seen[finalName] > 1) finalName += ' #' + seen[finalName];
-    }
+    if (bare === false && pick.raw) finalName = pick.raw + ' | ' + finalName;
+    seen[finalName] = (seen[finalName] || 0) + 1;
+    if (seen[finalName] > 1) finalName += ' #' + seen[finalName];
     node.name = finalName;
     result.push(node);
   }
