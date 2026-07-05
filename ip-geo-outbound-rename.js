@@ -138,7 +138,7 @@ function chooseLabel(node) {
   var code = detectCodeFromText(cleaned) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(getHost(node));
   var flag = code ? flagEmojiFromCode(code) : '';
   var country = code ? labelFromCode(code) : '';
-  var raw = cleaned.replace(/^[\s|\-—–_:,，、]+|[\s|\-—–_:,，、]+$/g, '').trim();
+  var raw = cleaned.replace(/\s*(?:[-_]|# ?)?\d{1,3}$/, '').replace(/^[\s|\-—–_:,，、]+|[\s|\-—–_:,，、]+$/g, '').trim();
   if (flag && country) return { flag: flag, country: country, raw: raw };
   if (raw) return { flag: '', country: raw, raw: raw };
   return { flag: '', country: '未知', raw: '' };
@@ -162,7 +162,9 @@ function operator(proxies) {
     }
     if (bare === false && pick.raw) finalName = pick.raw + ' | ' + finalName;
     seen[finalName] = (seen[finalName] || 0) + 1;
-    if (seen[finalName] > 1) finalName += ' #' + seen[finalName];
+    if (seen[finalName] > 1) {
+      finalName += '-' + String(seen[finalName]).padStart(2, '0');
+    }
     node.name = finalName;
     result.push(node);
   }
