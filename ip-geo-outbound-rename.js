@@ -186,13 +186,37 @@ function getOutboundLabel() {
   return label;
 }
 
+function stripNodeLinks(text) {
+  return String(text || '')
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/t\.me\/\S+/gi, ' ')
+    .replace(/telegram\.me\/\S+/gi, ' ')
+    .replace(/telegram\.dog\/\S+/gi, ' ')
+    .replace(/@[A-Za-z0-9_]{4,}/g, ' ')
+    .replace(/[|｜\-—–_,，、]+\s*$/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function isLoopbackHost(host) {
+  var h = String(host || '').trim().toLowerCase();
+  return h === '127.0.0.1' || h === 'localhost' || h === '::1' || h === '[::1]';
+}
+
 function operator(proxies) {
   var outboundLabel = getOutboundLabel();
   var result = [];
   var counts = {};
   for (var i = 0; i < proxies.length; i++) {
     var node = proxies[i];
-    var code = detectCodeFromText(node.name) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(getHost(node));
+    var host = getHost(node);
+    if (isLoopbackHost(host)) {
+      log('drop loopback => ' + (node.name || host || 'unknown'));
+      continue;
+    }
+    var rawName = String(node.name || '');
+    rawName = stripNodeLinks(rawName);
+    var code = detectCodeFromText(rawName) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(host);
     var base = code ? labelFromCode(code) : '';
     if (!base) {
       if (!nm) continue;
