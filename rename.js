@@ -118,6 +118,16 @@ function splitArrow(text) {
   };
 }
 
+function looksLikeAsnLabel(text) {
+  var s = String(text || '').trim();
+  if (!s) return false;
+  if (/([\uD83C][\uDDE6-\uDDFF]){2}/.test(s)) return true;
+  if (/^[A-Z]{2}(?:\s|$)/.test(s)) return true;
+  if (/\[[^\]]+\]/.test(s)) return true;
+  if (/\b(LLC|INC|LTD|GMBH|NETWORKS|CLOUD|COMMUNICATION|BUILDING|ONLINE|SERVICES|GROUP|DIGITAL|CONSTANT|HOSTPAPA|AKARI|DMIT|TENCENT|OVH|NETCUP|HETZNER)\b/i.test(s)) return true;
+  return false;
+}
+
 function pickCountry(text, node) {
   var cleaned = stripNodeLinks(String(text || ''));
   var code = detectCodeFromText(cleaned) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(node.name) || detectCodeFromText(node.server || node.address || node.host || node.add || node.hostname || node.ip || '');
@@ -150,6 +160,9 @@ function formatName(node) {
   }
 
   var single = pickCountry(parts.core, node);
+  if (!arrow && looksLikeAsnLabel(parts.core) && node._geo && node._geo.countryCode) {
+    single = flagEmojiFromCode(node._geo.countryCode) + ' ' + labelFromCode(node._geo.countryCode);
+  }
   if (parts.suffix) {
     if (protocol && !/\[[^\]]+\]/.test(parts.suffix)) {
       return single + ' ' + '[' + protocol + ']' + ' ' + parts.suffix;
