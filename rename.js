@@ -130,6 +130,9 @@ function looksLikeAsnLabel(text) {
 
 function pickCountry(text, node) {
   var cleaned = stripNodeLinks(String(text || ''));
+  if (/\bWS\b/i.test(cleaned)) {
+    return flagEmojiFromCode('TW') + ' ' + labelFromCode('TW');
+  }
   if (/(^|\s)WS(\s|$)/i.test(cleaned) && (/(台湾|Taiwan|TW|Data Communication Business Group|Digital United Inc\.?)/i.test(cleaned) || /tw/i.test(String(node.server || '')))) {
     return flagEmojiFromCode('TW') + ' ' + labelFromCode('TW');
   }
