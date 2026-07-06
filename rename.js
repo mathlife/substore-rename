@@ -130,14 +130,14 @@ function looksLikeAsnLabel(text) {
 
 function pickCountry(text, node) {
   var cleaned = stripNodeLinks(String(text || ''));
+  if (/(^|\s)WS(\s|$)/i.test(cleaned) && (/(台湾|Taiwan|TW|Data Communication Business Group|Digital United Inc\.?)/i.test(cleaned) || /tw/i.test(String(node.server || '')))) {
+    return flagEmojiFromCode('TW') + ' ' + labelFromCode('TW');
+  }
   var code = detectCodeFromText(cleaned) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(node.name) || detectCodeFromText(node.server || node.address || node.host || node.add || node.hostname || node.ip || '');
   if (!code) {
     var host = String(node.server || node.address || node.host || node.add || node.hostname || node.ip || '').trim();
     var cached = host ? getCachedGeoByHost(host) : null;
     if (cached && cached.code) code = cached.code;
-  }
-  if (!code && /(^|\s)WS(\s|$)/i.test(cleaned) && (/(台湾|Taiwan|TW|Data Communication Business Group|Digital United Inc\.?)/i.test(cleaned) || /tw/i.test(String(node.server || '')))) {
-    code = 'TW';
   }
   if (code) return flagEmojiFromCode(code) + ' ' + labelFromCode(code);
 
