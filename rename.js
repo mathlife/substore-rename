@@ -168,6 +168,22 @@ function detectCountryCity(text) {
   return null;
 }
 
+// Translate city names to Chinese when possible
+function translateCity(code, city) {
+  var c = normalizeCode(code);
+  var s = String(city || '').trim();
+  if (!s) return '';
+  if (c === 'US') {
+    var map = {
+      ashburn: '\u963f\u4ec0\u672c', // 阿什本
+      santaclara: '\u5723\u514b\u62c9\u62c9' // 圣克拉拉
+    };
+    var key = s.toLowerCase().replace(/[^a-z]/g, '');
+    return map[key] || s;
+  }
+  return s;
+}
+
 function formatName(node) {
   var original = String(node.name || '');
   // First, handle Signal-XX patterns directly
@@ -183,7 +199,7 @@ function formatName(node) {
   var cc = detectCountryCity(parts.core);
   if (cc) {
     var out2 = flagEmojiFromCode(cc.code) + ' ' + labelFromCode(cc.code);
-    if (cc.city) out2 += ' ' + cc.city;
+    if (cc.city) out2 += ' ' + translateCity(cc.code, cc.city);
     if (parts.suffix) out2 += ' ' + parts.suffix;
     return out2;
   }
