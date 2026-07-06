@@ -433,9 +433,45 @@ function formatName(node) {
   return single;
 }
 
+function isRecognizedCountryName(name) {
+  var s = String(name || '').trim();
+  return /^([\uD83C][\uDDE6-\uDDFF]){2}\s+/.test(s);
+}
+
+function readScriptArgs() {
+  var raw = '';
+  try {
+    if (typeof $arguments !== 'undefined' && $arguments) raw = String($arguments);
+  } catch (e) {}
+  try {
+    if (!raw && typeof $argument !== 'undefined' && $argument) raw = String($argument);
+  } catch (e2) {}
+  try {
+    if (!raw && typeof globalThis !== 'undefined' && globalThis && globalThis.$arguments) raw = String(globalThis.$arguments);
+  } catch (e3) {}
+  var out = {};
+  if (!raw) return out;
+  raw.split('&').forEach(function (part) {
+    if (!part) return;
+    var idx = part.indexOf('=');
+    var k = idx >= 0 ? part.slice(0, idx) : part;
+    var v = idx >= 0 ? part.slice(idx + 1) : 'true';
+    try {
+      k = decodeURIComponent(k).trim();
+      v = decodeURIComponent(v).trim();
+    } catch (e4) {}
+    if (!k) return;
+    out[k] = /^(1|true|yes|on)$/i.test(v);
+  });
+  return out;
+}
+
 function operator(proxies) {
   var result = [];
   var seen = new Set(); // 用于去除重复节点
+  var args = readScriptArgs();
+  var keepKnown = !!args.keepKnown;
+  var keepUnknown = !!args.keepUnknown;
   for (var i = 0; i < proxies.length; i++) {
     var node = proxies[i];
     // 构造唯一标识，基于 server、port、protocol、sni、host、path、uuid(或 password)
@@ -453,6 +489,9 @@ function operator(proxies) {
     }
     seen.add(key);
     node.name = formatName(node);
+    var known = isRecognizedCountryName(node.name);
+    if (keepKnown && !known) continue;
+    if (keepUnknown && known) continue;
     result.push(node);
   }
   return result;
