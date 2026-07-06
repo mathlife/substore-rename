@@ -128,12 +128,19 @@ function looksLikeAsnLabel(text) {
   return false;
 }
 
+// New helper: detect country code from "Signal-xx" pattern
+function detectSignalCode(text) {
+  var m = String(text || '').match(/Signal-([a-z]{2})/i);
+  if (m) return m[1].toUpperCase();
+  return '';
+}
+
 function pickCountry(text, node) {
   var cleaned = stripNodeLinks(String(text || ''));
   if (/\bWS\b/i.test(cleaned)) {
     return flagEmojiFromCode('TW') + ' ' + labelFromCode('TW');
   }
-  if (/(^|\s)WS(\s|$)/i.test(cleaned) && (/(台湾|Taiwan|TW|Data Communication Business Group|Digital United Inc\.?)/i.test(cleaned) || /tw/i.test(String(node.server || '')))) {
+  if (/(?:^|\s)WS(?:\s|$)/i.test(cleaned) && (/(台湾|Taiwan|TW|Data Communication Business Group|Digital United Inc\.?)/i.test(cleaned) || /tw/i.test(String(node.server || '')))) {
     return flagEmojiFromCode('TW') + ' ' + labelFromCode('TW');
   }
   var code = detectCodeFromText(cleaned) || detectCodeFromText(node.ps) || detectCodeFromText(node.remarks) || detectCodeFromText(node.name) || detectCodeFromText(node.server || node.address || node.host || node.add || node.hostname || node.ip || '');
@@ -153,7 +160,15 @@ function pickCountry(text, node) {
 
 function formatName(node) {
   var original = String(node.name || '');
+  // First, handle Signal-XX patterns directly
+  var signalCode = detectSignalCode(original);
   var parts = splitTailSuffix(original);
+  if (signalCode) {
+    var out = flagEmojiFromCode(signalCode) + ' ' + labelFromCode(signalCode);
+    if (parts.suffix) out += ' ' + parts.suffix;
+    return out;
+  }
+
   var arrow = splitArrow(parts.core);
   var protocol = getProtocol(node);
 
@@ -176,7 +191,7 @@ function formatName(node) {
     return single + ' ' + parts.suffix;
   }
   if (protocol && !/\[[^\]]+\]/.test(single)) {
-    // 已经在原名里没有协议标记时，不强行加，保持“直接转换”
+    // already has protocol, keep as is
     return single;
   }
   return single;
