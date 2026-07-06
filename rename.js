@@ -163,12 +163,12 @@ function detectCountryCity(text) {
   // Detect patterns like "United State-<city>" or "United States-<city>"
   var m = raw.match(/^United\s+States?-?\s*[-_]?\s*([^#]+)/i);
   if (m) {
-    return { code: 'US', city: m[1].trim() };
+    return { code: 'US', city: m[1].trim().replace(/\d+$/, '') };
   }
   // Detect patterns like "VIP-GB-London48" / "GB-London48"
   var m2 = raw.match(/(?:^|[-_\s])([A-Z]{2})-([A-Za-z]+\d*)$/i);
   if (m2) {
-    return { code: normalizeCode(m2[1]), city: m2[2].trim() };
+    return { code: normalizeCode(m2[1]), city: m2[2].trim().replace(/\d+$/, '') };
   }
   return null;
 }
