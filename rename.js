@@ -136,6 +136,9 @@ function pickCountry(text, node) {
     var cached = host ? getCachedGeoByHost(host) : null;
     if (cached && cached.code) code = cached.code;
   }
+  if (!code && /(^|\s)WS(\s|$)/i.test(cleaned) && (/(台湾|Taiwan|TW|Data Communication Business Group|Digital United Inc\.?)/i.test(cleaned) || /tw/i.test(String(node.server || '')))) {
+    code = 'TW';
+  }
   if (code) return flagEmojiFromCode(code) + ' ' + labelFromCode(code);
 
   var hostCache = getCachedGeoByHost(String(node.server || node.address || node.host || node.add || node.hostname || node.ip || '').trim());
