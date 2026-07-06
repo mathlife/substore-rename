@@ -184,7 +184,7 @@ function translateCity(code, city) {
 
   var cityMap = {
     US: {
-      arizona: '',
+      arizona: '\u4e9a\u5229\u6851\u90a3',
       atlanta: '\u4e9a\u7279\u5170\u5927',
       buffalo: '\u5e03\u6c34\u725b\u57ce',
       charlotte: '\u590f\u6d1b\u7279',
@@ -202,7 +202,7 @@ function translateCity(code, city) {
       sanfrancisco: '\u65e7\u91d1\u5c71',
       santaclara: '\u5723\u514b\u62c9\u62c9',
       seattle: '\u897f\u96c5\u56fe',
-      virginia: '',
+      virginia: '\u7ef4\u5409\u5c3c\u4e9a',
       ashburn: '\u963f\u4ec0\u672c'
     },
     GB: {
