@@ -59,7 +59,7 @@ function labelFromCode(code) {
     IS: '冰岛', IT: '意大利', JP: '日本', KR: '韩国', KH: '柬埔寨', KZ: '哈萨克斯坦', LT: '立陶宛', LU: '卢森堡', LV: '拉脱维亚', MA: '摩洛哥', MD: '摩尔多瓦',
     MK: '北马其顿', MX: '墨西哥', MY: '马来西亚', NL: '荷兰', NO: '挪威', NZ: '新西兰', PH: '菲律宾', PK: '巴基斯坦', PL: '波兰', PT: '葡萄牙', RO: '罗马尼亚',
     RS: '塞尔维亚', RU: '俄罗斯', SA: '沙特阿拉伯', SE: '瑞典', SG: '新加坡', SI: '斯洛文尼亚', SK: '斯洛伐克', TH: '泰国', TR: '土耳其', TW: '台湾', UA: '乌克兰',
-    US: '美国', UZ: '乌兹别克斯坦', VN: '越南', WS: '萨摩亚', ZA: '南非', DZ: '阿尔及利亚', TN: '突尼斯'
+    US: '美国', UZ: '乌兹别克斯坦', VN: '越南', WS: '萨摩亚', ZA: '南非', DZ: '阿尔及利亚', TN: '突尼斯', NP: '尼泊尔', TM: '土库曼斯坦', TJ: '塔吉克斯坦', LK: '斯里兰卡'
   };
   return map[normalizeCode(code)] || normalizeCode(code);
 }
@@ -160,6 +160,7 @@ function pickCountry(text, node) {
 
 function detectCountryCity(text) {
   var raw = String(text || '').trim();
+  raw = raw.replace(/^\p{Extended_Pictographic}+/gu, '').trim();
   // Detect patterns like "United State-<city>" or "United States-<city>"
   var m = raw.match(/^United\s+States?-?\s*[-_]?\s*([^#]+)/i);
   if (m) {
@@ -179,15 +180,208 @@ function translateCity(code, city) {
   var c = normalizeCode(code);
   var s = String(city || '').trim();
   if (!s) return '';
-  if (c === 'US') {
-    var map = {
-      ashburn: '\u963f\u4ec0\u672c', // 阿什本
-      santaclara: '\u5723\u514b\u62c9\u62c9' // 圣克拉拉
-    };
-    var key = s.toLowerCase().replace(/[^a-z]/g, '');
-    return map[key] || s;
+  var key = s.toLowerCase().replace(/[^a-z]/g, '');
+
+  var cityMap = {
+    US: {
+      arizona: '',
+      atlanta: '\u4e9a\u7279\u5170\u5927',
+      buffalo: '\u5e03\u6c34\u725b\u57ce',
+      charlotte: '\u590f\u6d1b\u7279',
+      chicago: '\u829d\u52a0\u54e5',
+      columbus: '\u54e5\u4f26\u5e03',
+      dallas: '\u8fbe\u62c9\u65af',
+      denver: '\u4e39\u4f5b',
+      lasvegas: '\u62c9\u65af\u7ef4\u52a0\u65af',
+      losangeles: '\u6d1b\u6749\u77f6',
+      miami: '\u8fc8\u963f\u5bc6',
+      minneapolis: '\u660e\u5c3c\u963f\u6ce2\u5229\u65af',
+      newyork: '\u7ebd\u7ea6',
+      phoenix: '\u51e4\u51f0\u57ce',
+      portland: '\u6ce2\u7279\u5170',
+      sanfrancisco: '\u65e7\u91d1\u5c71',
+      santaclara: '\u5723\u514b\u62c9\u62c9',
+      seattle: '\u897f\u96c5\u56fe',
+      virginia: '',
+      ashburn: '\u963f\u4ec0\u672c'
+    },
+    GB: {
+      london: '\u4f26\u6566'
+    },
+    HK: {
+      hongkong: ''
+    },
+    TW: {
+      taiwan: ''
+    },
+    AU: {
+      australia: ''
+    },
+    AT: {
+      austria: ''
+    },
+    BE: {
+      belgium: ''
+    },
+    BR: {
+      brazil: ''
+    },
+    BG: {
+      bulgaria: ''
+    },
+    KH: {
+      cambodia: ''
+    },
+    CA: {
+      canada: ''
+    },
+    CO: {
+      colombia: ''
+    },
+    HR: {
+      croatia: ''
+    },
+    CZ: {
+      czechrepublic: ''
+    },
+    DK: {
+      denmark: ''
+    },
+    EG: {
+      egypt: ''
+    },
+    EE: {
+      estonia: ''
+    },
+    FI: {
+      finland: ''
+    },
+    FR: {
+      france: ''
+    },
+    DE: {
+      germany: ''
+    },
+    GR: {
+      greece: ''
+    },
+    HU: {
+      hungary: ''
+    },
+    IS: {
+      iceland: ''
+    },
+    IN: {
+      india: ''
+    },
+    ID: {
+      indonesia: ''
+    },
+    IE: {
+      ireland: ''
+    },
+    IL: {
+      israel: ''
+    },
+    IT: {
+      italy: ''
+    },
+    JP: {
+      japan: ''
+    },
+    KZ: {
+      kazakhstan: ''
+    },
+    LV: {
+      latvia: ''
+    },
+    LT: {
+      lithuania: ''
+    },
+    LU: {
+      luxembourg: ''
+    },
+    MY: {
+      malaysia: ''
+    },
+    MX: {
+      mexico: ''
+    },
+    MD: {
+      moldova: ''
+    },
+    NP: {
+      nepal: ''
+    },
+    NL: {
+      netherlands: ''
+    },
+    NZ: {
+      newzealand: ''
+    },
+    NO: {
+      norway: ''
+    },
+    PH: {
+      philippines: ''
+    },
+    PL: {
+      poland: ''
+    },
+    PT: {
+      portugal: ''
+    },
+    RO: {
+      romania: ''
+    },
+    RU: {
+      russia: ''
+    },
+    RS: {
+      serbia: ''
+    },
+    SG: {
+      singapore: ''
+    },
+    SK: {
+      slovakia: ''
+    },
+    ZA: {
+      southafrica: ''
+    },
+    KR: {
+      southkorea: ''
+    },
+    ES: {
+      spain: ''
+    },
+    LK: {
+      srilanka: ''
+    },
+    SE: {
+      sweden: ''
+    },
+    CH: {
+      switzerland: ''
+    },
+    TJ: {
+      tajikistan: ''
+    },
+    TR: {
+      turkey: ''
+    },
+    TM: {
+      turkmenistan: ''
+    },
+    UA: {
+      ukraine: ''
+    }
+  };
+
+  if (cityMap[c] && Object.prototype.hasOwnProperty.call(cityMap[c], key)) {
+    return cityMap[c][key];
   }
-  return s;
+  return '';
 }
 
 function formatName(node) {
@@ -205,7 +399,8 @@ function formatName(node) {
   var cc = detectCountryCity(parts.core);
   if (cc) {
     var out2 = flagEmojiFromCode(cc.code) + ' ' + labelFromCode(cc.code);
-    if (cc.city) out2 += ' ' + translateCity(cc.code, cc.city);
+    var cityText = cc.city ? translateCity(cc.code, cc.city) : '';
+    if (cityText) out2 += ' ' + cityText;
     if (parts.suffix) out2 += ' ' + parts.suffix;
     return out2;
   }
