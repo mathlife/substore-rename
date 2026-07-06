@@ -32,6 +32,17 @@ function normalizeCode(code) {
   return c;
 }
 
+function flagToCode(flag) {
+  if (!flag || typeof flag !== 'string') return '';
+  var chars = [];
+  for (var i = 0; i < flag.length; i++) {
+    var cp = flag.codePointAt(i);
+    if (cp >= 0x1F1E6 && cp <= 0x1F1FF) chars.push(String.fromCharCode(65 + cp - 0x1F1E6));
+    if (cp > 0xFFFF) i++;
+  }
+  return chars.length === 2 ? chars.join('') : '';
+}
+
 function flagEmojiFromCode(code) {
   var c = normalizeCode(code);
   if (!/^[A-Z]{2}$/.test(c)) return '';
@@ -55,6 +66,11 @@ function labelFromCode(code) {
 
 function detectCodeFromText(text) {
   var raw = String(text || '');
+  var flagMatch = raw.match(/([\uD83C][\uDDE6-\uDDFF]){2}/);
+  if (flagMatch) {
+    var flagCode = flagToCode(flagMatch[0]);
+    if (flagCode) return flagCode;
+  }
   var s = raw.toLowerCase().replace(/[^a-z]/g, '');
   var aliases = {
     albania: 'AL', algeria: 'DZ', argentina: 'AR', armenia: 'AM', australia: 'AU', austria: 'AT', azerbaijan: 'AZ', bahrain: 'BH', bangladesh: 'BD', belgium: 'BE',
@@ -64,7 +80,8 @@ function detectCodeFromText(text) {
     newzealand: 'NZ', norway: 'NO', pakistan: 'PK', philippines: 'PH', poland: 'PL', portugal: 'PT', romania: 'RO', russia: 'RU', saudiarabia: 'SA', serbia: 'RS', singapore: 'SG',
     slovakia: 'SK', slovenia: 'SI', southafrica: 'ZA', southkorea: 'KR', korea: 'KR', northkorea: 'KP', spain: 'ES', sweden: 'SE', switzerland: 'CH', taiwan: 'TW', thailand: 'TH',
     turkey: 'TR', ukraine: 'UA', unitedarabemirates: 'AE', unitedkingdom: 'GB', unitedstates: 'US', usa: 'US', us: 'US', vietnam: 'VN', uzbekistan: 'UZ', macedonia: 'MK',
-    cloudflare: 'US', hetzner: 'DE', netcup: 'DE', ovh: 'FR', yottasrc: 'FR', yottasource: 'FR'
+    cloudflare: 'US', hetzner: 'DE', netcup: 'DE', ovh: 'FR', yottasrc: 'FR', yottasource: 'FR',
+    dmit: 'HK', tencent: 'SG', hostpapa: 'US', akari: 'WS', digitalocean: 'US', bagecloud: 'DE', bage: 'DE'
   };
   for (var k in aliases) {
     if (s.indexOf(k) >= 0) return aliases[k];
