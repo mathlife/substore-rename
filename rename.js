@@ -439,6 +439,11 @@ function isRecognizedCountryName(name) {
 }
 
 function readScriptArgs() {
+  try {
+    if (typeof $arguments !== 'undefined' && $arguments && typeof $arguments === 'object' && !Array.isArray($arguments)) {
+      return $arguments;
+    }
+  } catch (e0) {}
   var raw = '';
   try {
     if (typeof $arguments !== 'undefined' && $arguments) raw = String($arguments);
