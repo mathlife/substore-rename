@@ -234,13 +234,23 @@ function formatName(node) {
 
 function operator(proxies) {
   var result = [];
+  var seen = new Set(); // 用于去除重复节点
   for (var i = 0; i < proxies.length; i++) {
     var node = proxies[i];
-    var host = String(node.server || node.address || node.host || node.add || node.hostname || node.ip || '').trim();
-    if (!host) {
-      result.push(node);
+    // 构造唯一标识，基于 server、port、protocol、sni、host、path、uuid(或 password)
+    var server = (node.server || node.address || node.host || node.add || node.hostname || node.ip || '').trim();
+    var port = String(node.port || '');
+    var proto = String(node.type || node.protocol || node.network || '').trim().toLowerCase();
+    var sni = (node.sni || node.servername || node.peer || (node["reality-opts"] && node["reality-opts"]["server-name"]))?.trim() || '';
+    var host = (node.host || (node["ws-opts"] && node["ws-opts"].headers && node["ws-opts"].headers.Host) || (node["ws-opts"] && node["ws-opts"].headers && node["ws-opts"].headers.host))?.trim() || '';
+    var path = (node["ws-opts"] && node["ws-opts"].path) || (node["grpc-opts"] && node["grpc-opts"]["grpc-service-name"]) || '';
+    var uuid = String(node.uuid || node.password || node.client_id || '').trim();
+    var key = [server, port, proto, sni, host, path, uuid].join('\x01');
+    if (seen.has(key)) {
+      // 重复节点直接跳过
       continue;
     }
+    seen.add(key);
     node.name = formatName(node);
     result.push(node);
   }
