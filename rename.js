@@ -59,7 +59,7 @@ function labelFromCode(code) {
     IS: '冰岛', IT: '意大利', JP: '日本', KR: '韩国', KH: '柬埔寨', KZ: '哈萨克斯坦', LT: '立陶宛', LU: '卢森堡', LV: '拉脱维亚', MA: '摩洛哥', MD: '摩尔多瓦',
     MK: '北马其顿', MX: '墨西哥', MY: '马来西亚', NL: '荷兰', NO: '挪威', NZ: '新西兰', PH: '菲律宾', PK: '巴基斯坦', PL: '波兰', PT: '葡萄牙', RO: '罗马尼亚',
     RS: '塞尔维亚', RU: '俄罗斯', SA: '沙特阿拉伯', SE: '瑞典', SG: '新加坡', SI: '斯洛文尼亚', SK: '斯洛伐克', TH: '泰国', TR: '土耳其', TW: '台湾', UA: '乌克兰',
-    US: '美国', UZ: '乌兹别克斯坦', VN: '越南', ZA: '南非', DZ: '阿尔及利亚', TN: '突尼斯'
+    US: '美国', UZ: '乌兹别克斯坦', VN: '越南', WS: '萨摩亚', ZA: '南非', DZ: '阿尔及利亚', TN: '突尼斯'
   };
   return map[normalizeCode(code)] || normalizeCode(code);
 }
