@@ -13,7 +13,7 @@ Sub-Store 节点重命名脚本（真实 IP Geo 版）。
 
 ## 文件
 
-- `ip-geo-outbound-rename.js`
+- `rename.js`
 - `update-outbound-cache.py`
 
 ---
@@ -25,7 +25,7 @@ Sub-Store Script Operator 支持两种传参方式：
 ### 1. URL fragment
 
 ```text
-https://raw.githubusercontent.com/mathlife/substore-rename/refs/heads/main/ip-geo-outbound-rename.js#bare=true&chinese=true&nm=true
+https://raw.githubusercontent.com/mathlife/substore-rename/refs/heads/main/rename.js#bare=true&chinese=true&nm=true
 ```
 
 ### 2. arguments 对象
@@ -34,7 +34,7 @@ https://raw.githubusercontent.com/mathlife/substore-rename/refs/heads/main/ip-ge
 {
   "type": "Script Operator",
   "args": {
-    "content": "https://raw.githubusercontent.com/mathlife/substore-rename/refs/heads/main/ip-geo-outbound-rename.js#bare=true&chinese=true&nm=true",
+    "content": "https://raw.githubusercontent.com/mathlife/substore-rename/refs/heads/main/rename.js#bare=true&chinese=true&nm=true",
     "mode": "link",
     "arguments": {
       "bare": "true",
