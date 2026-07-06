@@ -158,6 +158,16 @@ function pickCountry(text, node) {
   return cleaned;
 }
 
+function detectCountryCity(text) {
+  // Detect patterns like "United State-<city>" or "United States-<city>"
+  var m = String(text || '').match(/^United\s+States?-?\s*[-_]?\s*([^#]+)$/i);
+  if (m) {
+    // Return US code and the extracted city part (trimmed)
+    return { code: 'US', city: m[1].trim() };
+  }
+  return null;
+}
+
 function formatName(node) {
   var original = String(node.name || '');
   // First, handle Signal-XX patterns directly
@@ -167,6 +177,15 @@ function formatName(node) {
     var out = flagEmojiFromCode(signalCode) + ' ' + labelFromCode(signalCode);
     if (parts.suffix) out += ' ' + parts.suffix;
     return out;
+  }
+
+  // Handle Country-City formats like "United State-Ashburn" or "United States-SantaClara"
+  var cc = detectCountryCity(parts.core);
+  if (cc) {
+    var out2 = flagEmojiFromCode(cc.code) + ' ' + labelFromCode(cc.code);
+    if (cc.city) out2 += ' ' + cc.city;
+    if (parts.suffix) out2 += ' ' + parts.suffix;
+    return out2;
   }
 
   var arrow = splitArrow(parts.core);
